@@ -1,0 +1,30 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ratesrisk
+          POSTGRES_USER: ratesrisk
+          POSTGRES_PASSWORD: ci-only-postgres-password
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U ratesrisk -d ratesrisk"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - run: mvn --batch-mode verify
+        env:
+          DATABASE_URL: jdbc:postgresql://localhost:5432/ratesrisk
+          DATABASE_USER: ratesrisk
+          DATABASE_PASSWORD: ci-only-postgres-password
+          APP_USER: ci-user
+          APP_PASSWORD: ci-only-password-123456

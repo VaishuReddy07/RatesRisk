@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ratesrisk
+  labels:
+    app: ratesrisk
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ratesrisk
+  template:
+    metadata:
+      labels:
+        app: ratesrisk
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ratesrisk
+          image: your-registry/ratesrisk:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+            - name: DATABASE_URL
+              value: jdbc:postgresql://your-managed-postgres:5432/ratesrisk
+            - name: DATABASE_USER
+              value: ratesrisk_app
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ratesrisk-db
+                  key: password
+            - name: OIDC_ISSUER_URI
+              value: https://identity.example.com/issuer
+            - name: OIDC_AUDIENCE
+              value: ratesrisk-api
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 768Mi
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ratesrisk
+spec:
+  type: ClusterIP
+  selector:
+    app: ratesrisk
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

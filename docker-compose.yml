@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ratesrisk
+      POSTGRES_USER: ${DATABASE_USER:?Set DATABASE_USER in your .env file}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in your .env file}
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ratesrisk -d ratesrisk"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  api:
+    build: .
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/ratesrisk
+      DATABASE_USER: ${DATABASE_USER:?Set DATABASE_USER in your .env file}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in your .env file}
+      APP_USER: ${APP_USER:?Set APP_USER in your .env file}
+      APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD in your .env file}
+    ports: ["${RATESRISK_API_PORT:-8081}:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/actuator/health/readiness || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 25s
+    depends_on:
+      db:
+        condition: service_healthy
